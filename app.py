@@ -10,7 +10,7 @@ from groq import Groq
 # ==========================================
 # CONFIGURACIÓN SEGURA (SOLO IA)
 # ==========================================
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"] 
 
 # ==========================================
 # LECTURA DE BASE DE DATOS (SOLO LECTURA)
@@ -66,7 +66,12 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    [data-testid="stMetric"] { padding: 15px 20px; border-radius: 12px; border: 1px solid rgba(128, 128, 128, 0.2); background-color: #f9fbfb;}
+    [data-testid="stMetric"] { 
+        padding: 15px 20px; 
+        border-radius: 12px; 
+        border: 1px solid rgba(128, 128, 128, 0.2); 
+        background-color: var(--secondary-background-color); 
+    }
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; }
 </style>
