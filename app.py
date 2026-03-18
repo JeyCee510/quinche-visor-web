@@ -10,7 +10,7 @@ from groq import Groq
 # ==========================================
 # CONFIGURACIÓN SEGURA (SOLO IA)
 # ==========================================
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"] 
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
 # ==========================================
 # LECTURA DE BASE DE DATOS (SOLO LECTURA)
@@ -242,10 +242,10 @@ with tab3:
 
                     csv_inv = df_inv[['Fecha Inicio', 'Entidad', 'Monto', 'Estado']].to_csv(index=False) if not df_inv.empty else "Sin inversiones."
                     csv_prov = pd.DataFrame(datos_prov_global).to_csv(index=False) if datos_prov_global else "Sin provisiones."
-                    saldo_str = f"SALDO BANCARIO ACTUAL: ${saldo_real_actual:.2f}\\n" if 'saldo_real_actual' in locals() else ""
+                    saldo_str = f"SALDO BANCARIO ACTUAL: ${saldo_real_actual:.2f}\n" if 'saldo_real_actual' in locals() else ""
 
                     client = Groq(api_key=GROQ_API_KEY)
-                    system_prompt = f"Eres el analista financiero de 'El Quinche'. Responde usando estos datos:\\n{csv_master}\\n{csv_inv}\\n{csv_prov}\\n{saldo_str}\\nReglas: Solo temas financieros de este proyecto. Sé directo y usa $."
+                    system_prompt = f"Eres el analista financiero de 'El Quinche'. Responde usando estos datos:\n{csv_master}\n{csv_inv}\n{csv_prov}\n{saldo_str}\nReglas: Solo temas financieros de este proyecto. Sé directo y usa $."
 
                     messages_to_send = [{"role": "system", "content": system_prompt}] + st.session_state.messages_ai
                     completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=messages_to_send, temperature=0.1, max_tokens=600)
