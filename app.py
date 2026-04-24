@@ -191,6 +191,85 @@ with tab1:
             st.dataframe(pd.DataFrame(datos_prov_global).style.format({'Acumulado': "${:,.2f}"}), hide_index=True, width="stretch")
 
         st.markdown("---")
+        st.markdown("### 📈 Evolución de Gastos por Categoría")
+        st.caption("Análisis histórico independiente de los filtros del sidebar.")
+
+        df_gastos_all = df[df['Tipo'] == 'Gasto'].copy()
+
+        if df_gastos_all.empty:
+            st.info("No hay gastos registrados aún.")
+        else:
+            df_gastos_all['MesPeriodo'] = df_gastos_all['Fecha'].dt.to_period('M')
+            meses_disponibles = sorted(df_gastos_all['MesPeriodo'].dropna().unique())
+            etiquetas_meses = [m.strftime('%b %Y') for m in meses_disponibles]
+            mapa_etiqueta = dict(zip(etiquetas_meses, meses_disponibles))
+
+            col_ev1, col_ev2, col_ev3 = st.columns([2, 1, 1])
+            with col_ev1:
+                cats_evolucion = st.multiselect("Categorías a graficar:",
+                    options=CATEGORIAS_EXACTAS, default=[], key='evolucion_cats')
+            with col_ev2:
+                mes_desde = st.selectbox("Desde:", etiquetas_meses, index=0, key='evolucion_desde')
+            with col_ev3:
+                mes_hasta = st.selectbox("Hasta:", etiquetas_meses,
+                    index=len(etiquetas_meses)-1, key='evolucion_hasta')
+
+            col_ev4, col_ev5 = st.columns([2, 1])
+            with col_ev4:
+                tipo_grafico = st.radio("Tipo de gráfico:",
+                    ["Líneas", "Barras agrupadas", "Barras apiladas"],
+                    horizontal=True, key='evolucion_tipo')
+            with col_ev5:
+                mostrar_total = st.checkbox("Mostrar total agregado",
+                    value=False, key='evolucion_total')
+
+            if not cats_evolucion:
+                st.info("Selecciona una o más categorías para ver la evolución.")
+            else:
+                p_desde, p_hasta = mapa_etiqueta[mes_desde], mapa_etiqueta[mes_hasta]
+                if p_desde > p_hasta:
+                    p_desde, p_hasta = p_hasta, p_desde
+
+                df_ev = df_gastos_all[
+                    (df_gastos_all['Categoría'].isin(cats_evolucion)) &
+                    (df_gastos_all['MesPeriodo'] >= p_desde) &
+                    (df_gastos_all['MesPeriodo'] <= p_hasta)
+                ].copy()
+
+                if df_ev.empty:
+                    st.warning("No hay gastos en esas categorías y rango.")
+                else:
+                    todos_meses = pd.period_range(p_desde, p_hasta, freq='M')
+                    grilla = pd.MultiIndex.from_product(
+                        [todos_meses, cats_evolucion], names=['MesPeriodo', 'Categoría'])
+                    df_agg = (df_ev.groupby(['MesPeriodo', 'Categoría'])['Monto'].sum()
+                              .reindex(grilla, fill_value=0).reset_index())
+                    df_agg['Mes'] = df_agg['MesPeriodo'].apply(lambda p: p.strftime('%b %Y'))
+                    orden = [p.strftime('%b %Y') for p in todos_meses]
+
+                    if tipo_grafico == "Líneas":
+                        fig_ev = px.line(df_agg, x='Mes', y='Monto', color='Categoría',
+                            markers=True, category_orders={'Mes': orden})
+                    elif tipo_grafico == "Barras agrupadas":
+                        fig_ev = px.bar(df_agg, x='Mes', y='Monto', color='Categoría',
+                            barmode='group', category_orders={'Mes': orden})
+                    else:
+                        fig_ev = px.bar(df_agg, x='Mes', y='Monto', color='Categoría',
+                            barmode='stack', category_orders={'Mes': orden})
+
+                    if mostrar_total:
+                        df_tot = df_agg.groupby('Mes', as_index=False)['Monto'].sum()
+                        df_tot['Mes'] = pd.Categorical(df_tot['Mes'], categories=orden, ordered=True)
+                        df_tot = df_tot.sort_values('Mes')
+                        fig_ev.add_scatter(x=df_tot['Mes'], y=df_tot['Monto'],
+                            mode='lines+markers', name='Total',
+                            line=dict(color='black', dash='dash'))
+
+                    fig_ev.update_layout(yaxis_tickformat=',.0f',
+                        xaxis_title="Mes", yaxis_title="Monto ($)")
+                    st.plotly_chart(fig_ev, width="stretch")
+
+        st.markdown("---")
         st.markdown("### 🕒 Últimos 5 Movimientos")
         df_ultimos = df[df['Categoría'] != 'comisión banco'].sort_values(by="Fecha", ascending=False).head(5).copy()
         df_ultimos['Fecha'] = df_ultimos['Fecha'].dt.strftime('%d/%m/%Y')
