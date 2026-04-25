@@ -6,18 +6,18 @@ import os
 import json
 import sqlite3
 from groq import Groq
-
+ 
 # ==========================================
 # CONFIGURACIÓN SEGURA (SOLO IA)
 # ==========================================
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"] 
-
+ 
 # ==========================================
 # LECTURA DE BASE DE DATOS (SOLO LECTURA)
 # ==========================================
 DB_NAME = "quinche_data.db"
 ARCHIVO_CONFIG = "quinche_config.json"
-
+ 
 def cargar_tabla(nombre_tabla):
     try:
         conn = sqlite3.connect(DB_NAME)
@@ -30,11 +30,11 @@ def cargar_tabla(nombre_tabla):
         return df
     except Exception:
         return pd.DataFrame()
-
+ 
 df = cargar_tabla("master")
 df_inv = cargar_tabla("inversiones")
 df_act = cargar_tabla("activos")
-
+ 
 def cargar_config():
     default_config = {
         "saldo_inicial": 0.0, 
@@ -50,11 +50,11 @@ def cargar_config():
             if "provisiones" not in data: data["provisiones"] = default_config["provisiones"]
             return data
     return default_config
-
+ 
 config = cargar_config()
 datos_prov_global = [{"Rubro": k, "Acumulado": float(v["acumulado"])} for k, v in config["provisiones"].items()]
 total_inmovilizado_global = sum(d["Acumulado"] for d in datos_prov_global)
-
+ 
 # ==========================================
 # INTERFAZ DE USUARIO (VISUALIZADOR)
 # ==========================================
@@ -63,7 +63,7 @@ st.set_page_config(
     layout="wide", 
     initial_sidebar_state="expanded" 
 )
-
+ 
 st.markdown("""
 <style>
     [data-testid="stMetric"] { 
@@ -76,10 +76,10 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; }
 </style>
 """, unsafe_allow_html=True)
-
+ 
 st.title("📊 Panel Financiero - El Quinche (Visor)")
 st.info("🔒 Esta es una versión de acceso público y solo lectura. Los datos están protegidos.")
-
+ 
 CATEGORIAS_EXACTAS = [
     "sueldo (incluye FR)", "intereses recibidos", "inversión", "capital invertido", "alquiler", 
     "venta de aguacates", "servicios básicos", "infraestructura", 
@@ -87,17 +87,17 @@ CATEGORIAS_EXACTAS = [
     "IESS", "Préstamo IESS", "gasolina aceite", "asignación Laura", "comisión banco", 
     "Prediales - Impuestos", "varios"
 ]
-
+ 
 if 'filtro_categorias' not in st.session_state: st.session_state.filtro_categorias = CATEGORIAS_EXACTAS.copy()
-
+ 
 def select_all_cats(): st.session_state.filtro_categorias = CATEGORIAS_EXACTAS.copy()
 def clear_all_cats(): st.session_state.filtro_categorias = []
-
+ 
 # --- FILTROS LATERALES ---
 st.sidebar.markdown("### 📅 Filtros de Visualización")
 opcion_fecha = st.sidebar.radio("Periodo de análisis:", ["Este Mes", "Este Año", "Todo el Historial", "Personalizado"])
 hoy = datetime.now().date()
-
+ 
 if opcion_fecha == "Este Mes": 
     start_date, end_date = pd.to_datetime(hoy.replace(day=1)), pd.to_datetime(hoy)
 elif opcion_fecha == "Este Año": 
@@ -108,16 +108,16 @@ elif opcion_fecha == "Personalizado":
 else: 
     start_date = df['Fecha'].min() if not df.empty else pd.to_datetime(hoy)
     end_date = pd.to_datetime(hoy)
-
+ 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏷️ Filtrar por Categoría")
 col_btn1, col_btn2 = st.sidebar.columns(2)
 col_btn1.button("✅ Todas", on_click=select_all_cats)
 col_btn2.button("❌ Ninguna", on_click=clear_all_cats)
 categorias_seleccionadas = st.sidebar.multiselect("Categorías visibles:", options=CATEGORIAS_EXACTAS, key='filtro_categorias')
-
+ 
 tab1, tab2, tab3 = st.tabs(["📊 Dashboard Principal", "🗂️ Detalle de Movimientos", "🤖 Asistente IA"])
-
+ 
 # --- TAB 1: DASHBOARD ---
 with tab1:
     if not df.empty:
@@ -128,7 +128,7 @@ with tab1:
         gastos_periodo = df_filtered[df_filtered['Tipo'] == 'Gasto']['Monto'].sum()
         total_inversiones = df_inv[df_inv['Estado'] == 'Activa']['Monto'].sum() if not df_inv.empty else 0.0
         total_cxc = df_act[df_act['Estado'] == 'Pendiente']['Monto'].sum() if not df_act.empty else 0.0
-
+ 
         st.markdown("### 🏦 Resumen de Liquidez y Activos Histórico")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("SALDO BANCARIO ACTUAL", f"${saldo_real_actual:,.2f}")
@@ -144,7 +144,7 @@ with tab1:
             cp1.metric("Ingresos (Filtrados)", f"${ingresos_periodo:,.2f}")
             cp2.metric("Egresos (Filtrados)", f"${gastos_periodo:,.2f}")
             cp3.metric("Flujo Neto", f"${(ingresos_periodo - gastos_periodo):,.2f}")
-
+ 
         with col_radar:
             st.markdown("### 🎯 Radar de Pagos (Mes actual)")
             gastos_mes_actual = df[(df['Tipo'] == 'Gasto') & (df['Fecha'].dt.month == hoy.month) & (df['Fecha'].dt.year == hoy.year)]
@@ -157,16 +157,24 @@ with tab1:
                 return False
             
             radar_items = [
-                {"n": "Luz (EEQ)", "c": "servicios básicos", "i": ["luz", "eeq"]}, 
-                {"n": "Agua", "c": "servicios básicos", "i": ["agua", "pisque"]}, 
-                {"n": "Internet", "c": "servicios básicos", "i": ["internet", "fasttnet"]}, 
-                {"n": "Asig. Laura", "c": "asignación Laura", "i": []}, 
-                {"n": "Sueldo Julio", "c": "sueldo (incluye FR)", "i": []}, 
-                {"n": "IESS", "c": "IESS", "i": []}, 
-                {"n": "Préstamo IESS", "c": "Préstamo IESS", "i": []}
+                {"n": "Luz (EEQ)",      "c": "servicios básicos",   "i": ["luz", "eeq"],            "dia": 16},
+                {"n": "Agua (EPMAPS)",  "c": "servicios básicos",   "i": ["agua", "epmaps"],        "dia": 24},
+                {"n": "Internet",       "c": "servicios básicos",   "i": ["internet", "fasttnet"],  "dia": 2},
+                {"n": "Asig. Laura",    "c": "asignación Laura",    "i": [],                        "dia": 2},
+                {"n": "Sueldo Julio",   "c": "sueldo (incluye FR)", "i": [],                        "dia": 2},
+                {"n": "IESS",           "c": "IESS",                "i": [],                        "dia": 4},
+                {"n": "Préstamo IESS",  "c": "Préstamo IESS",       "i": [],                        "dia": 1}
             ]
+            hoy_dia = hoy.day
             for item in radar_items:
-                st.markdown(f"✅ **{item['n']}**" if check_radar(item['c'], item['i']) else f"⚠️ **{item['n']}** (Pendiente)")
+                pagado = check_radar(item['c'], item['i'])
+                d = item['dia']
+                if pagado:
+                    st.markdown(f"✅ **{item['n']}** · :gray[día {d}]")
+                elif hoy_dia <= d:
+                    st.markdown(f":green[🟢 **{item['n']}** · vence día {d}]")
+                else:
+                    st.markdown(f":red[🔴 **{item['n']}** · atrasado desde día {d}]")
         
         st.markdown("---")
         col_chart1, col_chart2, col_chart3 = st.columns([2, 2, 1])
@@ -189,13 +197,13 @@ with tab1:
             st.markdown("#### 💰 Provisiones")
             st.metric("Total Inmovilizado", f"${total_inmovilizado_global:,.2f}")
             st.dataframe(pd.DataFrame(datos_prov_global).style.format({'Acumulado': "${:,.2f}"}), hide_index=True, width="stretch")
-
+ 
         st.markdown("---")
-        st.markdown("### 📈 Evolución de Gastos por Categoría")
+        st.markdown("### 📈 Evolución de Gastos")
         st.caption("Análisis histórico independiente de los filtros del sidebar.")
-
+ 
         df_gastos_all = df[df['Tipo'] == 'Gasto'].copy()
-
+ 
         if df_gastos_all.empty:
             st.info("No hay gastos registrados aún.")
         else:
@@ -203,17 +211,28 @@ with tab1:
             meses_disponibles = sorted(df_gastos_all['MesPeriodo'].dropna().unique())
             etiquetas_meses = [m.strftime('%b %Y') for m in meses_disponibles]
             mapa_etiqueta = dict(zip(etiquetas_meses, meses_disponibles))
-
+ 
+            modo_evol = st.radio("Agrupar por:",
+                ["Categoría", "Concepto/Tag"],
+                horizontal=True, key='evolucion_modo')
+ 
             col_ev1, col_ev2, col_ev3 = st.columns([2, 1, 1])
             with col_ev1:
-                cats_evolucion = st.multiselect("Categorías a graficar:",
-                    options=CATEGORIAS_EXACTAS, default=[], key='evolucion_cats')
+                if modo_evol == "Categoría":
+                    seleccion = st.multiselect("Categorías a graficar:",
+                        options=CATEGORIAS_EXACTAS, default=[], key='evolucion_cats')
+                else:
+                    tags_input = st.text_input(
+                        "Tags (separados por coma) — busca en Concepto y Detalle:",
+                        value="", placeholder="ej: EPMAPS, EEQ, internet, Laura",
+                        key='evolucion_tags')
+                    seleccion = [t.strip() for t in tags_input.split(",") if t.strip()]
             with col_ev2:
                 mes_desde = st.selectbox("Desde:", etiquetas_meses, index=0, key='evolucion_desde')
             with col_ev3:
                 mes_hasta = st.selectbox("Hasta:", etiquetas_meses,
                     index=len(etiquetas_meses)-1, key='evolucion_hasta')
-
+ 
             col_ev4, col_ev5 = st.columns([2, 1])
             with col_ev4:
                 tipo_grafico = st.radio("Tipo de gráfico:",
@@ -222,41 +241,57 @@ with tab1:
             with col_ev5:
                 mostrar_total = st.checkbox("Mostrar total agregado",
                     value=False, key='evolucion_total')
-
-            if not cats_evolucion:
-                st.info("Selecciona una o más categorías para ver la evolución.")
+ 
+            if not seleccion:
+                if modo_evol == "Categoría":
+                    st.info("Selecciona una o más categorías para ver la evolución.")
+                else:
+                    st.info("Escribe uno o más tags (separados por coma) para ver la evolución.")
             else:
                 p_desde, p_hasta = mapa_etiqueta[mes_desde], mapa_etiqueta[mes_hasta]
                 if p_desde > p_hasta:
                     p_desde, p_hasta = p_hasta, p_desde
-
-                df_ev = df_gastos_all[
-                    (df_gastos_all['Categoría'].isin(cats_evolucion)) &
+ 
+                df_rango = df_gastos_all[
                     (df_gastos_all['MesPeriodo'] >= p_desde) &
                     (df_gastos_all['MesPeriodo'] <= p_hasta)
                 ].copy()
-
+ 
+                if modo_evol == "Categoría":
+                    df_ev = df_rango[df_rango['Categoría'].isin(seleccion)].copy()
+                    df_ev['Serie'] = df_ev['Categoría']
+                else:
+                    partes = []
+                    for tag in seleccion:
+                        tag_low = tag.lower()
+                        mask = (df_rango['Concepto'].fillna('').str.lower().str.contains(tag_low, regex=False) |
+                                df_rango['Detalle'].fillna('').str.lower().str.contains(tag_low, regex=False))
+                        sub = df_rango[mask].copy()
+                        sub['Serie'] = tag
+                        partes.append(sub)
+                    df_ev = pd.concat(partes, ignore_index=True) if partes else df_rango.iloc[0:0].assign(Serie='')
+ 
                 if df_ev.empty:
-                    st.warning("No hay gastos en esas categorías y rango.")
+                    st.warning("No hay gastos que coincidan en ese rango.")
                 else:
                     todos_meses = pd.period_range(p_desde, p_hasta, freq='M')
-                    grilla = pd.MultiIndex.from_product(
-                        [todos_meses, cats_evolucion], names=['MesPeriodo', 'Categoría'])
-                    df_agg = (df_ev.groupby(['MesPeriodo', 'Categoría'])['Monto'].sum()
+                    grilla = pd.MultiIndex.from_product([todos_meses, seleccion], names=['MesPeriodo', 'Serie'])
+                    df_agg = (df_ev.groupby(['MesPeriodo', 'Serie'])['Monto'].sum()
                               .reindex(grilla, fill_value=0).reset_index())
                     df_agg['Mes'] = df_agg['MesPeriodo'].apply(lambda p: p.strftime('%b %Y'))
                     orden = [p.strftime('%b %Y') for p in todos_meses]
-
+                    legend_title = "Categoría" if modo_evol == "Categoría" else "Tag"
+ 
                     if tipo_grafico == "Líneas":
-                        fig_ev = px.line(df_agg, x='Mes', y='Monto', color='Categoría',
+                        fig_ev = px.line(df_agg, x='Mes', y='Monto', color='Serie',
                             markers=True, category_orders={'Mes': orden})
                     elif tipo_grafico == "Barras agrupadas":
-                        fig_ev = px.bar(df_agg, x='Mes', y='Monto', color='Categoría',
+                        fig_ev = px.bar(df_agg, x='Mes', y='Monto', color='Serie',
                             barmode='group', category_orders={'Mes': orden})
                     else:
-                        fig_ev = px.bar(df_agg, x='Mes', y='Monto', color='Categoría',
+                        fig_ev = px.bar(df_agg, x='Mes', y='Monto', color='Serie',
                             barmode='stack', category_orders={'Mes': orden})
-
+ 
                     if mostrar_total:
                         df_tot = df_agg.groupby('Mes', as_index=False)['Monto'].sum()
                         df_tot['Mes'] = pd.Categorical(df_tot['Mes'], categories=orden, ordered=True)
@@ -264,11 +299,12 @@ with tab1:
                         fig_ev.add_scatter(x=df_tot['Mes'], y=df_tot['Monto'],
                             mode='lines+markers', name='Total',
                             line=dict(color='black', dash='dash'))
-
+ 
                     fig_ev.update_layout(yaxis_tickformat=',.0f',
-                        xaxis_title="Mes", yaxis_title="Monto ($)")
+                        xaxis_title="Mes", yaxis_title="Monto ($)",
+                        legend_title_text=legend_title)
                     st.plotly_chart(fig_ev, width="stretch")
-
+ 
         st.markdown("---")
         st.markdown("### 🕒 Últimos 5 Movimientos")
         df_ultimos = df[df['Categoría'] != 'comisión banco'].sort_values(by="Fecha", ascending=False).head(5).copy()
@@ -276,7 +312,7 @@ with tab1:
         st.dataframe(df_ultimos[['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Monto']].style.format({'Monto': "${:,.2f}"}), hide_index=True, width="stretch")
     else: 
         st.warning("No se encontraron datos.")
-
+ 
 # --- TAB 2: VISTA DE BASES DE DATOS ---
 with tab2:
     st.markdown("### 🗂️ Explorador de Datos (Solo Lectura)")
@@ -294,7 +330,7 @@ with tab2:
         df_act_show = df_act.copy()
         df_act_show['Fecha'] = df_act_show['Fecha'].dt.strftime('%d/%m/%Y')
         st.dataframe(df_act_show, width="stretch", hide_index=True)
-
+ 
 # --- TAB 3: ASISTENTE AI ---
 with tab3:
     col_ia1, col_ia2 = st.columns([4, 1])
@@ -305,16 +341,16 @@ with tab3:
         if st.button("🧼 Limpiar pantalla", width="stretch"):
             st.session_state.messages_ai = []
             st.rerun()
-
+ 
     if "messages_ai" not in st.session_state: st.session_state.messages_ai = []
-
+ 
     for message in st.session_state.messages_ai:
         with st.chat_message(message["role"]): st.markdown(message["content"])
-
+ 
     if prompt := st.chat_input("Ej: ¿Cuánto he gastado en servicios básicos este año?"):
         st.session_state.messages_ai.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
-
+ 
         with st.chat_message("assistant"):
             try:
                 with st.spinner('Analizando los datos...'): 
@@ -323,18 +359,19 @@ with tab3:
                         df_ia['Fecha'] = pd.to_datetime(df_ia['Fecha']).dt.strftime('%Y-%m-%d')
                         csv_master = df_ia.to_csv(index=False)
                     else: csv_master = "Sin registros."
-
+ 
                     csv_inv = df_inv[['Fecha Inicio', 'Entidad', 'Monto', 'Estado']].to_csv(index=False) if not df_inv.empty else "Sin inversiones."
                     csv_prov = pd.DataFrame(datos_prov_global).to_csv(index=False) if datos_prov_global else "Sin provisiones."
                     saldo_str = f"SALDO BANCARIO ACTUAL: ${saldo_real_actual:.2f}\n" if 'saldo_real_actual' in locals() else ""
-
+ 
                     client = Groq(api_key=GROQ_API_KEY)
                     system_prompt = f"Eres el analista financiero de 'El Quinche'. Responde usando estos datos:\n{csv_master}\n{csv_inv}\n{csv_prov}\n{saldo_str}\nReglas: Solo temas financieros de este proyecto. Sé directo y usa $."
-
+ 
                     messages_to_send = [{"role": "system", "content": system_prompt}] + st.session_state.messages_ai
                     completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=messages_to_send, temperature=0.1, max_tokens=600)
-
+ 
                     response = completion.choices[0].message.content
                     st.markdown(response)
                     st.session_state.messages_ai.append({"role": "assistant", "content": response})
             except Exception as e: st.error(f"Error: {e}")
+ 
