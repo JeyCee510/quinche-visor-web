@@ -34,6 +34,7 @@ def cargar_tabla(nombre_tabla):
 df = cargar_tabla("master")
 df_inv = cargar_tabla("inversiones")
 df_act = cargar_tabla("activos")
+df_prov_hist = cargar_tabla("prov_hist")
  
 def cargar_config():
     default_config = {
@@ -116,7 +117,7 @@ col_btn1.button("✅ Todas", on_click=select_all_cats)
 col_btn2.button("❌ Ninguna", on_click=clear_all_cats)
 categorias_seleccionadas = st.sidebar.multiselect("Categorías visibles:", options=CATEGORIAS_EXACTAS, key='filtro_categorias')
  
-tab1, tab2, tab3 = st.tabs(["📊 Dashboard Principal", "🗂️ Detalle de Movimientos", "🤖 Asistente IA"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard Principal", "🗂️ Detalle de Movimientos", "💰 Provisiones", "🤖 Asistente IA"])
  
 # --- TAB 1: DASHBOARD ---
 with tab1:
@@ -195,6 +196,21 @@ with tab1:
         
         with col_chart3:
             st.markdown("#### 💰 Provisiones")
+            _meses_es_dash = {1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio",
+                              7: "julio", 8: "agosto", 9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"}
+            _hoy_dash = datetime.now()
+            _primer_dia_mes_act = datetime(_hoy_dash.year, _hoy_dash.month, 1)
+            _ultimo_dia_mes_previo = _primer_dia_mes_act - timedelta(days=1)
+            _inicio_mes_previo_dash = _ultimo_dia_mes_previo.replace(day=1)
+            _fecha_corte_str = f"{_ultimo_dia_mes_previo.day} de {_meses_es_dash[_ultimo_dia_mes_previo.month]} {_ultimo_dia_mes_previo.year}"
+            st.caption(f"📅 Corte al {_fecha_corte_str}")
+            if not df_prov_hist.empty:
+                _f_ultimo_reg = pd.to_datetime(df_prov_hist['Fecha']).max()
+                if _f_ultimo_reg.to_pydatetime() < _inicio_mes_previo_dash:
+                    _ult_reg_str = f"{_f_ultimo_reg.day} de {_meses_es_dash[_f_ultimo_reg.month]} {_f_ultimo_reg.year}"
+                    st.caption(f"⚠️ Aún no se aplican las cuotas del mes previo (último registro: {_ult_reg_str})")
+            else:
+                st.caption("⚠️ Sin cierres registrados aún")
             st.metric("Total Inmovilizado", f"${total_inmovilizado_global:,.2f}")
             st.dataframe(pd.DataFrame(datos_prov_global).style.format({'Acumulado': "${:,.2f}"}), hide_index=True, width="stretch")
  
@@ -331,8 +347,57 @@ with tab2:
         df_act_show['Fecha'] = df_act_show['Fecha'].dt.strftime('%d/%m/%Y')
         st.dataframe(df_act_show, width="stretch", hide_index=True)
  
-# --- TAB 3: ASISTENTE AI ---
+# --- TAB 3: PROVISIONES (SOLO LECTURA) ---
 with tab3:
+    st.markdown("### 💰 Fondo de Provisiones")
+    _meses_es_p = {1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio",
+                   7: "julio", 8: "agosto", 9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"}
+    _hoy_p = datetime.now()
+    _primer_dia_p = datetime(_hoy_p.year, _hoy_p.month, 1)
+    _ultimo_dia_mes_previo_p = _primer_dia_p - timedelta(days=1)
+    _inicio_mes_previo_p = _ultimo_dia_mes_previo_p.replace(day=1)
+    _fecha_corte_str_p = f"{_ultimo_dia_mes_previo_p.day} de {_meses_es_p[_ultimo_dia_mes_previo_p.month]} {_ultimo_dia_mes_previo_p.year}"
+    st.caption(f"📅 Corte al {_fecha_corte_str_p}")
+    if not df_prov_hist.empty:
+        _f_ultimo_reg_p = pd.to_datetime(df_prov_hist['Fecha']).max()
+        if _f_ultimo_reg_p.to_pydatetime() < _inicio_mes_previo_p:
+            _ult_reg_str_p = f"{_f_ultimo_reg_p.day} de {_meses_es_p[_f_ultimo_reg_p.month]} {_f_ultimo_reg_p.year}"
+            st.caption(f"⚠️ Aún no se aplican las cuotas del mes previo (último registro: {_ult_reg_str_p})")
+    else:
+        st.caption("⚠️ Sin cierres registrados aún")
+
+    st.markdown("#### Estado actual del fondo")
+    datos_prov_full_v = [{"Rubro": k, "Detalle / Vencimiento": v.get("nota", ""), "Cuota Mensual": float(v.get("mensual", 0.0)), "Acumulado Actual": float(v["acumulado"])} for k, v in config["provisiones"].items()]
+    st.dataframe(pd.DataFrame(datos_prov_full_v).style.format({'Cuota Mensual': "${:,.2f}", 'Acumulado Actual': "${:,.2f}"}), hide_index=True, width="stretch")
+    st.markdown(f"### Total Fondo Inmovilizado: **${total_inmovilizado_global:,.2f}**")
+
+    st.markdown("---")
+    st.markdown("#### 📈 Evolución mensual del Fondo")
+    st.caption("Para cada mes y rubro se toma el último acumulado registrado. Si un rubro no tuvo movimiento ese mes, se arrastra el saldo del mes anterior.")
+    if df_prov_hist.empty:
+        st.info("Aún no hay registros en el historial de provisiones.")
+    else:
+        df_hist_evol = df_prov_hist.copy()
+        df_hist_evol['Fecha'] = pd.to_datetime(df_hist_evol['Fecha'], errors='coerce')
+        df_hist_evol = df_hist_evol.dropna(subset=['Fecha'])
+        df_hist_evol['Mes'] = df_hist_evol['Fecha'].dt.to_period('M')
+        df_hist_evol = df_hist_evol.sort_values('Fecha')
+        df_ultimo_mes = df_hist_evol.groupby(['Mes', 'Rubro'], as_index=False).last()
+        pivote_evol = df_ultimo_mes.pivot(index='Mes', columns='Rubro', values='Acumulado').sort_index()
+        pivote_evol = pivote_evol.ffill().fillna(0.0)
+        pivote_evol['TOTAL INMOVILIZADO'] = pivote_evol.sum(axis=1)
+        pivote_evol = pivote_evol.sort_index(ascending=False)
+        pivote_evol.index = pivote_evol.index.strftime('%b %Y')
+        pivote_evol.index.name = 'Mes'
+        st.dataframe(pivote_evol.style.format("${:,.2f}"), width="stretch")
+
+        with st.expander("Ver historial crudo (todas las filas)"):
+            df_crudo = df_prov_hist.copy()
+            df_crudo['Fecha'] = pd.to_datetime(df_crudo['Fecha']).dt.strftime('%Y-%m-%d')
+            st.dataframe(df_crudo.sort_values(by="Fecha", ascending=False), hide_index=True, width="stretch")
+
+# --- TAB 4: ASISTENTE AI ---
+with tab4:
     col_ia1, col_ia2 = st.columns([4, 1])
     with col_ia1:
         st.markdown("### 🤖 Asistente Financiero AI")
