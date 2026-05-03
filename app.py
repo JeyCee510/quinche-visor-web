@@ -117,7 +117,7 @@ col_btn1.button("✅ Todas", on_click=select_all_cats)
 col_btn2.button("❌ Ninguna", on_click=clear_all_cats)
 categorias_seleccionadas = st.sidebar.multiselect("Categorías visibles:", options=CATEGORIAS_EXACTAS, key='filtro_categorias')
  
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard Principal", "🗂️ Detalle de Movimientos", "💰 Provisiones", "🤖 Asistente IA"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard Principal", "🗂️ Detalle de Movimientos", "💰 Provisiones", "🤖 Asistente IA", "📇 Info Esencial"])
  
 # --- TAB 1: DASHBOARD ---
 with tab1:
@@ -439,4 +439,48 @@ with tab4:
                     st.markdown(response)
                     st.session_state.messages_ai.append({"role": "assistant", "content": response})
             except Exception as e: st.error(f"Error: {e}")
+
+# --- TAB 5: INFO ESENCIAL (SOLO LECTURA) ---
+with tab5:
+    st.markdown("### 📇 Info Esencial")
+    st.caption("Números, cédulas y contactos clave para gestión y pagos. Pasa el cursor sobre cada número para copiarlo.")
+
+    col_ie_a, col_ie_b = st.columns(2)
+
+    with col_ie_a:
+        st.markdown("#### 🔌 Suministros / servicios públicos")
+        st.markdown("**EEQ** — Empresa Eléctrica Quito")
+        st.code("201003213893", language="")
+        st.markdown("**EPMAPS** — Agua Quito")
+        st.code("9930992954", language="")
+        st.markdown("**FASTTNET** — Internet · contrato a nombre de Martín Lira")
+        st.code("+593 99 001 6984", language="")
+        st.caption("Vía WhatsApp")
+
+        st.markdown("---")
+        st.markdown("#### 🏡 Predios")
+        st.markdown("**Sausalito** — Número de predio")
+        st.code("5604289", language="")
+
+        st.markdown("---")
+        st.markdown("#### 💼 Pagos institucionales")
+        st.markdown("**IESS Julio en Produ**")
+        st.markdown("RUC:")
+        st.code("1702788603001", language="")
+        st.markdown("Sucursal:")
+        st.code("0001", language="")
+
+    with col_ie_b:
+        st.markdown("#### 🪪 Cédulas")
+        st.markdown("**Julio Imbacuán**")
+        st.code("1761026432", language="")
+        st.markdown("**Tita Marujita**")
+        st.code("1702896380", language="")
+
+        st.markdown("---")
+        st.markdown("#### 📞 Contactos")
+        st.markdown("**Sandra** — Agua Pisque")
+        st.code("0994984063", language="")
+        st.markdown("**Florícola** — *Por completar*")
+        st.caption("Nombre, teléfono y correo pendientes de definir.")
  
