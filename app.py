@@ -167,15 +167,33 @@ with tab1:
                 {"n": "Préstamo IESS",  "c": "Préstamo IESS",       "i": [],                        "dia": 1}
             ]
             hoy_dia = hoy.day
+            # Clasificación: 0=atrasado, 1=por vencer pronto (≤5 días), 2=pendiente, 3=pagado
+            radar_eval = []
             for item in radar_items:
                 pagado = check_radar(item['c'], item['i'])
                 d = item['dia']
                 if pagado:
-                    st.markdown(f"✅ **{item['n']}** · :gray[día {d}]")
-                elif hoy_dia <= d:
-                    st.markdown(f":green[🟢 **{item['n']}** · vence día {d}]")
+                    estado, prio = "pagado", 3
+                elif hoy_dia > d:
+                    estado, prio = "atrasado", 0
+                elif (d - hoy_dia) <= 5:
+                    estado, prio = "vence_pronto", 1
                 else:
-                    st.markdown(f":red[🔴 **{item['n']}** · atrasado desde día {d}]")
+                    estado, prio = "pendiente", 2
+                radar_eval.append({"item": item, "estado": estado, "prio": prio, "dia": d})
+
+            radar_eval.sort(key=lambda x: (x["prio"], x["dia"]))
+            for ev in radar_eval:
+                nombre = ev["item"]["n"]
+                d = ev["dia"]
+                if ev["estado"] == "atrasado":
+                    st.markdown(f":red[🔴 **{nombre}** · atrasado desde día {d}]")
+                elif ev["estado"] == "vence_pronto":
+                    st.markdown(f":orange[🟡 **{nombre}** · vence día {d} (próximo)]")
+                elif ev["estado"] == "pendiente":
+                    st.markdown(f":blue[🔵 **{nombre}** · vence día {d}]")
+                else:
+                    st.markdown(f":gray[✅ {nombre} · día {d}]")
         
         st.markdown("---")
         col_chart1, col_chart2, col_chart3 = st.columns([2, 2, 1])
